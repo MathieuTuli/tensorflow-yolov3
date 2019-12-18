@@ -2,7 +2,7 @@ from setuptools import setup
 from glob import glob
 
 setup(
-    name='tensorflow-yolov3',
+    name='TFYOLOv3',
     use_scm_version=True,
     packages=[''],
     package_dir={'': 'src'},
