@@ -11,13 +11,16 @@ class Darknet53():
     def __str__(self) -> str:
         return 'Darknet53'
 
-    def conv(self,) -> layers.Layer:
+    @staticmethod
+    def conv() -> layers.Layer:
         ...
 
-    def block(self,) -> layers.Layer:
+    @staticmethod
+    def block() -> layers.Layer:
         ...
 
-    def residual(self,) -> layers.Layer:
+    @staticmethod
+    def residual() -> layers.Layer:
         ...
 
     def build(self, eager: bool = False) -> models.Model:
