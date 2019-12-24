@@ -1,4 +1,5 @@
 from tensorflow.keras import layers, models
+from typing import Optional, Tuple
 
 import tensorflow as tf
 import logging
@@ -12,8 +13,20 @@ class Darknet53():
         return 'Darknet53'
 
     @staticmethod
-    def conv() -> layers.Layer:
-        ...
+    def conv(filters: int,
+             kernel_size: Optional[int, Tuple[int, int]],
+             strides:  Optional[int, Tuple[int, int]],
+             padding: str = "valid",
+             data_format: str = "channels_last",
+             use_bias: bool = False,) -> layers.Layer:
+        layer = layers.Conv2D(
+            filters=filters,
+            kernel_size=kernel_size,
+            strides=strides,
+            padding=padding,
+            data_format=data_format,
+            use_bias=use_bias)
+        return layer
 
     @staticmethod
     def block() -> layers.Layer:
