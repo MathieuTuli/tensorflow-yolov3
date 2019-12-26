@@ -49,7 +49,7 @@ class Darknet53(Model):
         layer = skip1 = self.block3(layer)
         layer = skip2 = self.block4(layer)
         layer = self.block5(layer)
-        if self.pooled:
+        if self.pooled is not None:
             layer = self.pooled(layer)
             layer = self.dense(layer)
         return (skip1, skip2, layer)
