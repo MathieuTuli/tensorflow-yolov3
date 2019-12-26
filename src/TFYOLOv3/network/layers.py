@@ -3,8 +3,6 @@ from typing import Union, Tuple, List
 
 import tensorflow as tf
 
-from .helpers import BatchNormalization
-
 
 class Darknet53Conv(layers.Layer):
     def __init__(self,
@@ -13,7 +11,7 @@ class Darknet53Conv(layers.Layer):
                  strides:  Union[int, Tuple[int, int]] = 1,
                  data_format: str = "channels_last",
                  batch_norm: bool = True,
-                 kernel_regularizer: float = 0.0005, **kwargs):
+                 kernel_regularizer: float = 0.0005, **kwargs) -> None:
         super(Darknet53Conv, self).__init__(**kwargs)
         padding = 'same' if strides == 1 else 'valid'
         self.layer = layers.Conv2D(
@@ -45,7 +43,7 @@ class Darknet53Conv(layers.Layer):
 
 
 class Darknet53Residual(layers.Layer):
-    def __init__(self, filters: int, **kwargs):
+    def __init__(self, filters: int, **kwargs) -> None:
         super(Darknet53Residual, self).__init__(**kwargs)
         self.res1 = Darknet53Conv(filters=filters // 2,
                                   kernel_size=1)
@@ -70,7 +68,7 @@ class Darknet53Block(layers.Layer):
                  filters: int,
                  num_res: int,
                  conv_strides: Union[int, Tuple[int, int]] = 2,
-                 **kwargs):
+                 **kwargs) -> None:
         super(Darknet53Block, self).__init__(**kwargs)
         self.conv = Darknet53Conv(filters=filters,
                                   kernel_size=3,
@@ -99,9 +97,16 @@ class Darknet53Block(layers.Layer):
 
 
 class BatchNormalization(tf.keras.layers.BatchNormalization):
+    """@credit: https://github.com/zzh8829
+                https://github.com/zzh8829/yolov3-tf2/blob/master/yolov3_tf2/batch_norm.py
+    """
+
     def call(self,
-             layer: tf.keras.layers.Layer,
-             training: bool = False):
+             inputs: Union[tf.Tensor, Tuple[tf.Tensor, ...],
+                           List[tf.Tensor]],
+             training: bool = False) -> Union[tf.Tensor,
+                                              Tuple[tf.Tensor, ...],
+                                              List[tf.Tensor]]:
         if training is None:
             training = tf.constant(False)
-        return super().call(layer, training)
+        return super().call(inputs, training)
