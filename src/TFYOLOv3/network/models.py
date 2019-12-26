@@ -62,9 +62,9 @@ class Darknet53(Model):
 class YOLOv3(Model):
     def __init__(self,
                  num_classes: int,
-                 backbone: bool = True,
                  **kwargs) -> None:
         super(YOLOv3, self).__init__(**kwargs)
+        self.darknet_backbone = Darknet53()
         self.conv_scale3 = Darknet53Conv(filters=255, kernel_size=1)
 
         # TODO: add upsample
@@ -80,3 +80,13 @@ class YOLOv3(Model):
         self.block1_scale1 = [layers.Add()[
             Darknet53Conv(filters=128, kernel_size=1),
             Darknet53Conv(filters=256, kernel_size=3)] for i in range(3)]
+
+    def call(self,
+             inputs: Union[tf.Tensor,
+                           Tuple[tf.Tensor, ...],
+                           List[tf.Tensor]],
+             training: bool = False) -> Union[tf.Tensor,
+                                              Tuple[tf.Tensor, ...],
+                                              List[tf.Tensor]]:
+        early_stop, middle_stop, layer = self.darknet_backbone.call(
+            inputs, training)

@@ -4,6 +4,22 @@ from typing import Union, Tuple, List
 import tensorflow as tf
 
 
+class BatchNormalization(tf.keras.layers.BatchNormalization):
+    """@credit: https://github.com/zzh8829
+                https://github.com/zzh8829/yolov3-tf2/blob/master/yolov3_tf2/batch_norm.py
+    """
+
+    def call(self,
+             inputs: Union[tf.Tensor, Tuple[tf.Tensor, ...],
+                           List[tf.Tensor]],
+             training: bool = False) -> Union[tf.Tensor,
+                                              Tuple[tf.Tensor, ...],
+                                              List[tf.Tensor]]:
+        if training is None:
+            training = tf.constant(False)
+        return super().call(inputs, training)
+
+
 class Darknet53Conv(layers.Layer):
     def __init__(self,
                  filters: int,
@@ -96,17 +112,47 @@ class Darknet53Block(layers.Layer):
         return layer
 
 
-class BatchNormalization(tf.keras.layers.BatchNormalization):
-    """@credit: https://github.com/zzh8829
-                https://github.com/zzh8829/yolov3-tf2/blob/master/yolov3_tf2/batch_norm.py
-    """
+class YOLOConvUpsample(layers.Layer):
+    def __init__(self,
+                 filters: int,
+                 **kwargs) -> None:
+        super(YOLOConvUpsample, self).__init__(**kwargs)
+        self.conv = Darknet53Conv(filters=filters, kernel_size=1)
+        self.upsample = layers.UpSampling2D(
+            size=2, data_format='channels_last',
+            interpolation='nearest')
 
     def call(self,
-             inputs: Union[tf.Tensor, Tuple[tf.Tensor, ...],
+             inputs: Union[tf.Tensor,
+                           Tuple[tf.Tensor, ...],
                            List[tf.Tensor]],
-             training: bool = False) -> Union[tf.Tensor,
-                                              Tuple[tf.Tensor, ...],
-                                              List[tf.Tensor]]:
-        if training is None:
-            training = tf.constant(False)
-        return super().call(inputs, training)
+             **kwargs) -> Union[tf.Tensor,
+                                Tuple[tf.Tensor, ...],
+                                List[tf.Tensor]]:
+        layer = self.conv(inputs)
+        layer = self.upsample(layer)
+        return layer
+
+
+class YOLOBlock(layers.Layer):
+    def __init__(self,
+                 filters: int,
+                 **kwargs) -> None:
+        super(YOLOBlock, self).__init__(**kwargs)
+        self.conv1 = Darknet53Conv(filters=filters, kernel_size=1)
+        self.conv2 = Darknet53Conv(filters=filters * 2, kernel_size=3)
+
+    def call(self,
+             inputs: Union[tf.Tensor,
+                           Tuple[tf.Tensor, ...],
+                           List[tf.Tensor]],
+             **kwargs) -> Union[tf.Tensor,
+                                Tuple[tf.Tensor, ...],
+                                List[tf.Tensor]]:
+        layer = self.conv1(inputs)
+        layer = self.conv2(layer)
+        layer = self.conv1(layer)
+        layer = self.conv2(layer)
+        layer = self.conv1(layer)
+        layer = self.conv2(layer)
+        return layer
