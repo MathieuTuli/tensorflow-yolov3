@@ -29,9 +29,37 @@ class Darknet53(models.Model):
         https://pjreddie.com/media/files/papers/YOLOv3.pdf
     """
 
-    def __init__(self, name: str = "Darknet53") -> None:
+    def __init__(self, num_classes: int, name: str = "Darknet53") -> None:
         super(Darknet53, self).__init__()
-        self.inputs, self.skip1, self.skip2, self.layer = self.build()
+
+        logging.info("Darknet53: starting build")
+        layer = self.inputs = layers.Input([None, None, 3])
+        layer = Darknet53.conv(prev_layer=layer,
+                               filters=32,
+                               kernel_size=3)
+        layer = Darknet53.block(prev_layer=layer,
+                                filters=64,
+                                num_res=1)
+        layer = Darknet53.block(prev_layer=layer,
+                                filters=128,
+                                num_res=2)
+        layer = self.skip1 = Darknet53.block(prev_layer=layer,
+                                             filters=256,
+                                             num_res=8)
+        layer = self.skip2 = Darknet53.block(prev_layer=layer,
+                                             filters=512,
+                                             num_res=8)
+        self.layer = Darknet53.block(layer,
+                                     filters=1024,
+                                     num_res=4)
+        self.pooled = layers.GlobalAveragePooling2D(
+            data_format='channels_last')(self.layer)
+        self.fc = layers.Dense(
+            num_classes, activation='softmax')(self.pooled)
+
+        logging.info(
+            "Darknet53: model built successfully. Call " +
+            "*model*.summary() for summary")
 
     def __str__(self) -> str:
         return self.name
@@ -89,32 +117,5 @@ class Darknet53(models.Model):
             layer = Darknet53.residual(layer, filters)
         return layer
 
-    @tf.function()
-    def build(self) -> models.Model:
-        # channel last
-        logging.info("Darknet53: starting build")
-        layer = inputs = layers.Input([None, None, 3])
-        layer = Darknet53.conv(prev_layer=layer,
-                               filters=32,
-                               kernel_size=3)
-        layer = Darknet53.block(prev_layer=layer,
-                                filters=64,
-                                num_res=1)
-        layer = Darknet53.block(prev_layer=layer,
-                                filters=128,
-                                num_res=2)
-        layer = skip1 = Darknet53.block(prev_layer=layer,
-                                        filters=256,
-                                        num_res=8)
-        layer = skip2 = Darknet53.block(prev_layer=layer,
-                                        filters=512,
-                                        num_res=8)
-        layer = Darknet53.block(layer,
-                                filters=1024,
-                                num_res=4)
-        logging.info(
-            "Darknet53: model built successfully. Call " +
-            "*model*.summary() for summary")
-        return inputs, skip1, skip2, layer
-
     def call(self, inputs):
+        ...
