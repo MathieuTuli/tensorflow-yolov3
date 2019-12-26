@@ -128,9 +128,13 @@ class Darknet53(Model):
             "Darknet53: model built successfully. Call " +
             "*model*.summary() for summary")
 
-    def call(self, inputs: Union[tf.Tensor,
-                                 Tuple[tf.Tensor, ...],
-                                 List[tf.Tensor]], training: bool = False):
+    def call(self,
+             inputs: Union[tf.Tensor,
+                           Tuple[tf.Tensor, ...],
+                           List[tf.Tensor]],
+             training: bool = False) -> Union[tf.Tensor,
+                                              Tuple[tf.Tensor, ...],
+                                              List[tf.Tensor]]:
         layer = self.conv1(inputs)
         layer = self.block1(layer)
         layer = self.block2(layer)
