@@ -18,6 +18,8 @@
 - [ ] GPU Acceleration
 - [ ] Inference demo code
 - [ ] Training pipeline
-  - [ ] eager mode (tf.GradientTape)
-  - [ ] graph mode (model.fit)
+  - [ ] eager mode (`tf.GradientTape`)
+  - [ ] graph mode (`model.fit`)
 - [ ] Distillation module
+- [ ] Tensorflow Best Practices
+  - subclass `tf.keras.Model` and `tf.keras.layers.Layer`
