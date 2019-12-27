@@ -2,6 +2,7 @@ from tensorflow.keras import layers
 from typing import Union, Tuple, List
 
 import tensorflow as tf
+import logging
 
 
 class BatchNormalization(tf.keras.layers.BatchNormalization):
@@ -27,7 +28,8 @@ class Darknet53Conv(layers.Layer):
                  strides:  Union[int, Tuple[int, int]] = 1,
                  data_format: str = "channels_last",
                  batch_norm: bool = True,
-                 kernel_regularizer: float = 0.0005, **kwargs) -> None:
+                 kernel_regularizer: float = 0.0005,
+                 activation: str = 'LeakyReLU', **kwargs) -> None:
         super(Darknet53Conv, self).__init__(**kwargs)
         padding = 'same' if strides == 1 else 'valid'
         self.layer = layers.Conv2D(
@@ -39,10 +41,17 @@ class Darknet53Conv(layers.Layer):
             use_bias=not batch_norm,
             kernel_regularizer=tf.keras.regularizers.l2(kernel_regularizer))
         self.batch_norm = None
-        self.leaky_relu = None
+        self.activation = None
+        # TODO use activation in Conv2D and avoid below
         if batch_norm:
             self.batch_norm = BatchNormalization()
-            self.leaky_relu = layers.LeakyReLU(alpha=0.1)
+            if activation == 'LeakyReLU':
+                self.activation = layers.LeakyReLU(alpha=0.1)
+            elif activation == 'Linear':
+                ...
+            else:
+                logging.critical("Darknet53Conv: Unknown activation")
+                raise
 
     def call(self,
              inputs: Union[tf.Tensor,
@@ -54,7 +63,8 @@ class Darknet53Conv(layers.Layer):
         layer = self.layer(inputs)
         if self.batch_norm is not None:
             layer = self.batch_norm(layer)
-            layer = self.leaky_relu(layer)
+        if self.activation is not None:
+            layer = self.activation(layer)
         return layer
 
 
@@ -120,7 +130,7 @@ class YOLOConvUpsample(layers.Layer):
         self.conv = Darknet53Conv(filters=filters, kernel_size=1)
         self.upsample = layers.UpSampling2D(
             size=2, data_format='channels_last',
-            interpolation='nearest')
+            interpolation='bilinear')
 
     def call(self,
              inputs: Union[tf.Tensor,
@@ -140,10 +150,12 @@ class YOLOBlock(layers.Layer):
                  **kwargs) -> None:
         super(YOLOBlock, self).__init__(**kwargs)
         self.conv1 = Darknet53Conv(filters=filters, kernel_size=1)
-        self.conv2 = Darknet53Conv(filters=filters * 2, kernel_size=3)
-        self.conv3 = Darknet53Conv(filters=filters, kernel_size=1)
-        self.conv4 = Darknet53Conv(filters=filters * 2, kernel_size=3)
-        self.conv5 = Darknet53Conv(filters=filters, kernel_size=1)
+        self.convs = [
+            Darknet53Conv(filters=filters * 2, kernel_size=3),
+            Darknet53Conv(filters=filters, kernel_size=1),
+            Darknet53Conv(filters=filters * 2, kernel_size=3),
+            Darknet53Conv(filters=filters, kernel_size=1),
+            Darknet53Conv(filters=filters * 2, kernel_size=3)]
 
     def call(self,
              inputs: Union[tf.Tensor,
@@ -153,25 +165,24 @@ class YOLOBlock(layers.Layer):
                                 Tuple[tf.Tensor, ...],
                                 List[tf.Tensor]]:
         layer = self.conv1(inputs)
-        layer = self.conv2(layer)
-        layer = self.conv3(layer)
-        layer = self.conv4(layer)
-        layer = self.conv5(layer)
+        for conv in self.convs:
+            layer = conv(layer)
         return layer
 
 
 class YOLOOutput(layers.Layer):
     def __init__(self,
                  filters: int,
-                 anchors: int,
                  num_classes: int,
+                 num_anchors: int,
                  **kwargs) -> None:
-        super(YOLOBlock, self).__init__(**kwargs)
+        super(YOLOOutput, self).__init__(**kwargs)
         self.conv1 = Darknet53Conv(filters=filters * 2, kernel_size=3)
-        self.conv2 = Darknet53Conv(filters=anchors * (num_classes + 5),
+        self.conv2 = Darknet53Conv(filters=num_anchors * (num_classes + 5),
                                    kernel_size=1,
-                                   batch_norm=False)
-        self.anchors = anchors
+                                   batch_norm=False,
+                                   activation='Linear')
+        self.num_anchors = num_anchors
         self.num_classes = num_classes
 
     def call(self,
@@ -191,6 +202,6 @@ class YOLOOutput(layers.Layer):
             (-1,
              tf.shape(layer)[1],
              tf.shape(layer)[2],
-             self.anchors,
+             self.num_anchors,
              self.num_classes + 5)))(layer)
         return layer
