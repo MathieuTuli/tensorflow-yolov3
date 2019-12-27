@@ -4,7 +4,12 @@ from typing import Union, Tuple, List
 import tensorflow as tf
 import logging
 
-from .layers import Darknet53Conv, Darknet53Block
+from .layers import (
+    Darknet53Conv,
+    Darknet53Block,
+    YOLOConvUpsample,
+    YOLOBlock,
+    YOLOOutput)
 
 
 class Darknet53(Model):
@@ -62,24 +67,33 @@ class Darknet53(Model):
 class YOLOv3(Model):
     def __init__(self,
                  num_classes: int,
+                 anchors: List[Tuple[int, int]],
+                 masks: List[Tuple[int, int, int]],
                  **kwargs) -> None:
         super(YOLOv3, self).__init__(**kwargs)
         self.darknet_backbone = Darknet53()
-        self.conv_scale3 = Darknet53Conv(filters=255, kernel_size=1)
 
-        # TODO: add upsample
-        self.conv1_scale2 = Darknet53Conv(filters=256, kernel_size=1)
-        self.conv2_scale2 = Darknet53Conv(filters=255, kernel_size=1)
-        self.block1_scale2 = [layers.Add()[
-            Darknet53Conv(filters=256, kernel_size=1),
-            Darknet53Conv(filters=512, kernel_size=3)] for i in range(3)]
+        self.scale1_upsampler = YOLOConvUpsample(filters=128)
+        self.scale1_block = YOLOBlock(filters=128)
+        self.scale1_conv = Darknet53Conv(filters=255, kernel_size=1)
+        self.scale1_ouptut = YOLOOutput(filters=128,
+                                        anchors=len(masks[0]),
+                                        num_classes=num_classes)
 
-        # TODO: add upsample
-        self.conv1_scale1 = Darknet53Conv(filters=128, kernel_size=1)
-        self.conv2_scale1 = Darknet53Conv(filters=255, kernel_size=1)
-        self.block1_scale1 = [layers.Add()[
-            Darknet53Conv(filters=128, kernel_size=1),
-            Darknet53Conv(filters=256, kernel_size=3)] for i in range(3)]
+        self.scale2_upsampler = YOLOConvUpsample(filters=256)
+        self.scale2_block = YOLOBlock(filters=256)
+        self.scale2_conv = Darknet53Conv(filters=255, kernel_size=1)
+        self.scale2_ouptut = YOLOOutput(filters=256,
+                                        anchors=len(masks[1]),
+                                        num_classes=num_classes)
+
+        self.scale3_conv = Darknet53Conv(filters=255, kernel_size=1)
+        self.scale3_block = YOLOBlock(filters=512)
+        self.scale3_ouptut = YOLOOutput(filters=512,
+                                        anchors=len(masks[2]),
+                                        num_classes=num_classes)
+        self.masks = masks
+        self.num_classes = num_classes
 
     def call(self,
              inputs: Union[tf.Tensor,
@@ -88,5 +102,43 @@ class YOLOv3(Model):
              training: bool = False) -> Union[tf.Tensor,
                                               Tuple[tf.Tensor, ...],
                                               List[tf.Tensor]]:
-        early_stop, middle_stop, layer = self.darknet_backbone.call(
+        scale1_skip, scale2_skip, layer = self.darknet_backbone.call(
             inputs, training)
+        scale2_layer = scale3_layer = self.scale3_block(layer)
+        scale3_output = self.scale3_output(scale3_layer)
+        scale2_layer = self.scale2_upsampler(scale2_layer)
+        scale2_layer = layers.Concatenate()([scale2_layer, scale2_skip])
+        scale2_layer = self.scale2_block(scale2_layer)
+        scale2_output = self.scale2_output(scale2_layer)
+        scale1_layer = self.scale1_upsampler(scale2_layer)
+        scale1_layer = layers.Concatenate()([scale1_layer, scale1_skip])
+        scale1_layer = self.scale1_block(scale1_layer)
+        scale1_output = self.scale1_output(scale1_layer)
+        if training:
+            return scale1_output, scale2_output, scale3_output
+        boxes_1 = layers.Lambda(
+            lambda layer: yolo_boxes(
+                layer=layer,
+                anchor=self.anchors[self.masks[0]],
+                num_classes=self.num_classes),
+            name='yolo_boxes_scale1')(scale1_output)
+        boxes_2 = layers.Lambda(
+            lambda layer: yolo_boxes(
+                layer=layer,
+                anchors=self.anchors[self.masks[1]],
+                num_classes=self.num_classes),
+            name='yolo_boxes_scale2')(scale2_output)
+        boxes_3 = layers.Lambda(
+            lambda layer: yolo_boxes(
+                layer=layer,
+                anchors=self.anchors[self.masks[2]],
+                num_classes=self.num_classes),
+            name='yolo_boxes_scale3')(scale3_output)
+        output = layers.Lambda(
+            lambda layer: yolo_predict(
+                layer=layer,
+                anchors=self.anchors,
+                masks=self.masks,
+                num_classes=self.num_classes),
+            name='final_yolo_output')
+        return output

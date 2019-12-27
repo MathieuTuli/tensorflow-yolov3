@@ -141,6 +141,9 @@ class YOLOBlock(layers.Layer):
         super(YOLOBlock, self).__init__(**kwargs)
         self.conv1 = Darknet53Conv(filters=filters, kernel_size=1)
         self.conv2 = Darknet53Conv(filters=filters * 2, kernel_size=3)
+        self.conv3 = Darknet53Conv(filters=filters, kernel_size=1)
+        self.conv4 = Darknet53Conv(filters=filters * 2, kernel_size=3)
+        self.conv5 = Darknet53Conv(filters=filters, kernel_size=1)
 
     def call(self,
              inputs: Union[tf.Tensor,
@@ -151,8 +154,43 @@ class YOLOBlock(layers.Layer):
                                 List[tf.Tensor]]:
         layer = self.conv1(inputs)
         layer = self.conv2(layer)
-        layer = self.conv1(layer)
+        layer = self.conv3(layer)
+        layer = self.conv4(layer)
+        layer = self.conv5(layer)
+        return layer
+
+
+class YOLOOutput(layers.Layer):
+    def __init__(self,
+                 filters: int,
+                 anchors: int,
+                 num_classes: int,
+                 **kwargs) -> None:
+        super(YOLOBlock, self).__init__(**kwargs)
+        self.conv1 = Darknet53Conv(filters=filters * 2, kernel_size=3)
+        self.conv2 = Darknet53Conv(filters=anchors * (num_classes + 5),
+                                   kernel_size=1,
+                                   batch_norm=False)
+        self.anchors = anchors
+        self.num_classes = num_classes
+
+    def call(self,
+             inputs: Union[tf.Tensor,
+                           Tuple[tf.Tensor, ...],
+                           List[tf.Tensor]],
+             **kwargs) -> Union[tf.Tensor,
+                                Tuple[tf.Tensor, ...],
+                                List[tf.Tensor]]:
+        """
+        @credit: https://github.com/zzh8829/yolov3-tf2/blob/master/yolov3_tf2/models.py
+        """
+        layer = self.conv1(inputs)
         layer = self.conv2(layer)
-        layer = self.conv1(layer)
-        layer = self.conv2(layer)
+        layer = layers.Lambda(lambda layer: tf.reshape(
+            layer,
+            (-1,
+             tf.shape(layer)[1],
+             tf.shape(layer)[2],
+             self.anchors,
+             self.num_classes + 5)))(layer)
         return layer
