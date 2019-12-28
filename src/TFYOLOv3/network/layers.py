@@ -205,3 +205,26 @@ class YOLOOutput(layers.Layer):
              self.num_anchors,
              self.num_classes + 5)))(layer)
         return layer
+
+
+class YOLOInference(layers.Layer):
+    def __init__(self,
+                 num_classes: int,
+                 anchors: List[Tuple[int, int]],
+                 masks: List[Tuple[int, int, int]],
+                 **kwargs) -> None:
+        super(YOLOInference, self).__init__(**kwargs)
+        self.num_classes = num_classes
+        self.anchors = anchors
+        self.masks = masks
+
+    def call(self,
+             inputs: Union[tf.Tensor,
+                           Tuple[tf.Tensor, ...],
+                           List[tf.Tensor]],
+             **kwargs) -> Union[tf.Tensor,
+                                Tuple[tf.Tensor, ...],
+                                List[tf.Tensor]]:
+        """
+        """
+        return layer

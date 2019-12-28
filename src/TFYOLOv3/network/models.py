@@ -9,7 +9,8 @@ from .layers import (
     Darknet53Block,
     YOLOConvUpsample,
     YOLOBlock,
-    YOLOOutput)
+    YOLOOutput,
+    YOLOInference)
 
 
 class Darknet53(Model):
@@ -105,9 +106,9 @@ class YOLOv3(Model):
         self.scale3_ouptut = YOLOOutput(filters=512,
                                         anchors=len(masks[2]),
                                         num_classes=num_classes)
-        self.anchors = anchors
-        self.masks = masks
-        self.num_classes = num_classes
+        self.infer = YOLOInference(num_classes=num_classes,
+                                   anchors=anchors,
+                                   masks=masks)
 
     def call(self,
              inputs: Union[tf.Tensor,
@@ -135,22 +136,7 @@ class YOLOv3(Model):
         scale1_output = self.scale1_output(scale1_layer)
         if training:
             return scale1_output, scale2_output, scale3_output
-        outputs = YOLOv3.infer(scale1_layer=scale1_output,
-                               scale2_layer=scale2_output,
-                               scale3_layer=scale3_output,
-                               anchors=self.anchors,
-                               masks=self.masks,
-                               num_classes=self.num_classes)
+        outputs = self.infer()([scale1_output,
+                                scale2_output,
+                                scale3_output])
         return outputs
-
-    @staticmethod
-    @tf.function
-    def infer(scale1_layer: tf.Tensor,
-              scale2_layer: tf.Tensor,
-              scale3_layer: tf.Tensor,
-              anchors: List[Tuple[int, int]],
-              masks: List[Tuple[int, int, int]],
-              num_classes: int) -> Union[tf.Tensor,
-                                         Tuple[tf.Tensor, ...],
-                                         List[tf.Tensor]]:
-        ...
