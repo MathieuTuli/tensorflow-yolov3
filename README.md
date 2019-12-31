@@ -5,7 +5,8 @@
 - CPU and GPU use
 - Training, inference, and evaluation usage
 - Distillation experiements
-- Proper packaging which allows use of inference in a system of your own design
+- Tensorflow 2.0 Best Practices
+- Proper packaging
 
 #### TODO
 - [ ] Build the network
